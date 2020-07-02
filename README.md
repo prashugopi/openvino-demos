@@ -1,5 +1,5 @@
 # openvino-demos
-
+# Mike Sedillo & Prashanth Gopinatth
 ## Facial Recognition demo
 
 ### To build for CPU
