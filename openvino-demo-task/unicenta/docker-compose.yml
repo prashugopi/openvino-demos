@@ -1,0 +1,52 @@
+version: "2"
+
+networks:
+  default:
+  db_net:
+    # {attachable: true}
+volumes:
+  db_vol:
+    driver: local
+  pos_vol:
+    driver: local
+
+services:
+
+  mariadb:
+    image: mariadb
+    environment:
+      - DB_COPY_PW_PATH=/opt/trans
+      # - GEN_DB_SVC=unicenta
+      - DB_USER=unicenta_svc
+      - DB_PASS=ry62UJQLR2AqELkq8vTkhL7M
+    restart: "always"
+    networks:
+      - db_net
+    expose:
+      - 3306
+    volumes:
+      - /var/lib/mysql:/var/lib/mysql
+      - db_vol:/opt/trans
+    # depends_on:
+      # - x11
+
+  unicenta:
+    image: unicenta
+    environment:
+      # - DB_COPY_PW_PATH=/opt/trans
+      - DB_HOST=mariadb
+      # - DB_SVC=unicenta
+      - DB_USER=unicenta_svc
+      - DB_PASS=E746090D21B1DD9F981A6619F2AE54C08EA505D79A5F1EE3C95217CD5E38254F
+      - DISPLAY=172.26.64.1:0.0
+#WSL IP Address
+    restart: "always"
+    networks:
+      - default
+      - db_net
+    volumes:
+      # - db_vol:/opt/trans
+      - pos_vol:/home/pos
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    depends_on:
+      - mariadb

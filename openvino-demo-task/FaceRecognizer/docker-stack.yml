@@ -1,0 +1,32 @@
+version: "3.7"
+
+services:
+    facerecognition:
+      image: docker:19.03.0
+      entrypoint: [sh, -c]
+      environment:
+        TASK_NAME: '{{.Task.Name}}'
+      command: >-
+        'exec docker run
+        --interactive
+        --init
+        --name face_recognizer 
+        --rm
+        --env DISPLAY=":0"
+        --env VNC=true
+        --env TASK_NAME=$${TASK_NAME}
+        --privileged=true
+        --net=host
+        --label com.docker.stack.namespace=$$(docker container inspect --format "{{index .Config.Labels \"com.docker.stack.namespace\"}}" $${TASK_NAME})
+        -v /dev:/dev:shared
+        -v /var/log:/var/log
+        -v /var/run:/var/run
+        -v /usr/bin/docker:/usr/bin/docker
+        10.1.1.87:443/broc/facerecognition'
+      volumes:
+        - /var/run/docker.sock:/var/run/docker.sock
+      deploy:
+        mode: global
+        placement:
+          constraints:
+            - node.labels.usb-camera == true

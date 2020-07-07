@@ -1,0 +1,85 @@
+#!/bin/sh
+
+if [ -z $DB_PORT ]; then
+    DB_PORT="3306"
+fi
+
+if [ -z $MAX_ALLOWED_PACKET ]; then
+    MAX_ALLOWED_PACKET="200M"
+fi
+
+if [ -z $DB_DATA_PATH ]; then
+    DB_DATA_PATH="/var/lib/mysql"
+fi
+
+DB_ROOT_PASS=$(pwgen -1 32)
+
+sed -i "s|max_allowed_packet\s*=\s*1M|max_allowed_packet = ${MAX_ALLOWED_PACKET}|g" /etc/my.cnf.d/mariadb-server.cnf
+sed -i "s|max_allowed_packet\s*=\s*16M|max_allowed_packet = ${MAX_ALLOWED_PACKET}|g" /etc/my.cnf.d/mariadb-server.cnf
+sed -i "s|^#bind-address=0.0.0.0|bind-address=0.0.0.0|g" /etc/my.cnf.d/mariadb-server.cnf
+
+COMMAND="/usr/bin/mysqld --basedir=/usr --datadir=${DB_DATA_PATH} --plugin-dir=/usr/lib/mariadb/plugin --user=mysql --pid-file=/run/mysqld/mysqld.pid --socket=/run/mysqld/mysqld.sock --port=${DB_PORT} --skip-name-resolve --skip-networking=0 $@"
+# --console 
+
+if [ -d ${DB_DATA_PATH}/mysql ]; then
+    echo "[i] MySQL directory already present, skipping creation"
+	chown -R mysql:mysql ${DB_DATA_PATH} /run/mysqld
+
+    # cat /opt/trans/.my.cnf | sed "s|_PASSWORD_|$(cat /opt/trans/info)|g" > /root/.my.cnf
+
+    echo ${COMMAND}
+    exec ${COMMAND}
+else
+	echo "[i] MySQL data directory not found, creating initial DBs"
+    rm ${DB_COPY_PW_PATH}/info
+
+	chown -R mysql:mysql ${DB_DATA_PATH} /run/mysqld
+
+    mysql_install_db --user=mysql --datadir=${DB_DATA_PATH}
+
+    /usr/bin/mysqld --basedir=/usr --datadir=${DB_DATA_PATH} --plugin-dir=/usr/lib/mariadb/plugin --user=mysql --pid-file=/run/mysqld/mysqld.pid --socket=/run/mysqld/mysqld.sock --port=${DB_PORT} --skip-name-resolve --skip-networking=0 &
+
+    sleep 3.5
+
+    mysqladmin -u root password "${DB_ROOT_PASS}"
+
+    echo "GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' IDENTIFIED BY '${DB_ROOT_PASS}' WITH GRANT OPTION;" > /tmp/sql
+    if [ ! -z $GEN_DB_SVC ]; then
+        for svc in ${GEN_DB_SVC}; do
+            GEN_DB_USER=${svc}_svc
+            GEN_DB_PASS=$(pwgen -1 32)
+            echo "GRANT ALL ON ${GEN_DB_USER}.* TO ${GEN_DB_USER}@'127.0.0.1' IDENTIFIED BY '${GEN_DB_PASS}' WITH GRANT OPTION;" >> /tmp/sql
+            echo "GRANT ALL ON ${GEN_DB_USER}.* TO ${GEN_DB_USER}@'localhost' IDENTIFIED BY '${GEN_DB_PASS}' WITH GRANT OPTION;" >> /tmp/sql
+            echo "GRANT ALL ON ${GEN_DB_USER}.* TO ${GEN_DB_USER}@'::1' IDENTIFIED BY '${GEN_DB_PASS}' WITH GRANT OPTION;" >> /tmp/sql
+            echo "GRANT ALL ON ${GEN_DB_USER}.* TO ${GEN_DB_USER}@'%' IDENTIFIED BY '${GEN_DB_PASS}' WITH GRANT OPTION;" >> /tmp/sql
+            echo "CREATE DATABASE ${GEN_DB_USER};" >> /tmp/sql
+            echo "${GEN_DB_PASS}" > ${DB_COPY_PW_PATH}/${svc}_svc
+        done
+    fi
+    if [ ! -z $DB_USER ]; then
+        echo "GRANT ALL ON ${DB_USER}.* TO ${DB_USER}@'127.0.0.1' IDENTIFIED BY '${DB_PASS}' WITH GRANT OPTION;" >> /tmp/sql
+        echo "GRANT ALL ON ${DB_USER}.* TO ${DB_USER}@'localhost' IDENTIFIED BY '${DB_PASS}' WITH GRANT OPTION;" >> /tmp/sql
+        echo "GRANT ALL ON ${DB_USER}.* TO ${DB_USER}@'::1' IDENTIFIED BY '${DB_PASS}' WITH GRANT OPTION;" >> /tmp/sql
+        echo "GRANT ALL ON ${DB_USER}.* TO ${DB_USER}@'%' IDENTIFIED BY '${DB_PASS}' WITH GRANT OPTION;" >> /tmp/sql
+        echo "CREATE DATABASE ${DB_USER};" >> /tmp/sql
+    fi
+    if [ ! -z $DB_USER ] || [ ! -z $GEN_DB_SVC ]; then
+        echo "DELETE FROM mysql.user WHERE User='';" >> /tmp/sql
+    fi
+    echo "DROP DATABASE test;" >> /tmp/sql
+    echo "FLUSH PRIVILEGES;" >> /tmp/sql
+    mysql -u root --password="${DB_ROOT_PASS}" < /tmp/sql
+    rm /tmp/sql
+
+    mysqladmin -u root --password="${DB_ROOT_PASS}" shutdown
+
+    cp /root/TEMPLATE.my.cnf /root/.my.cnf
+    sed -i "s|_PASSWORD_|${DB_ROOT_PASS}|g" /root/.my.cnf
+    if [ ! -z $DB_COPY_PW_PATH ] && [ "$DB_SHARE_CREDS" == "true" ]; then
+        cp /root/TEMPLATE.my.cnf ${DB_COPY_PW_PATH}/.my.cnf
+        echo "${DB_ROOT_PASS}" > ${DB_COPY_PW_PATH}/info
+    fi
+    rm /root/TEMPLATE.my.cnf
+    
+    exec ${COMMAND}
+fi

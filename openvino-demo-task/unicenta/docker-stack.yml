@@ -1,0 +1,88 @@
+version: "3"
+
+networks:
+  default:
+  db_net:
+    driver: overlay
+    attachable: true
+volumes:
+  # db_vol:
+  #   driver: local
+  pos_vol:
+    driver: local
+
+services:
+  x11:
+    image: docker:18.09.7
+    entrypoint: [sh, -c]
+    environment:
+      TASK_NAME: '{{.Task.Name}}'
+    command: >-
+      'exec docker run 
+      --interactive
+      --name x11
+      --rm
+      --env VNC=true
+      --privileged=true
+      --net=host
+      --label com.docker.stack.namespace=$$(docker container inspect --format "{{index .Config.Labels \"com.docker.stack.namespace\"}}" $${TASK_NAME})
+      -v /tmp/.X11-unix:/tmp/.X11-unix:rw
+      -v /dev:/dev:shared
+      -v /var/log:/var/log 
+      -v /var/run/udev:/var/run/udev
+      edge/x11:3.10'
+    volumes:
+      - /var/run:/var/run
+    deploy:
+      mode: global
+      placement:
+        constraints: 
+          - node.platform.os == linux
+          - engine.labels.graphics.i915 == true
+          - engine.labels.serial_number == DW1626551800123
+
+  mariadb:
+    image: mariadb
+    environment:
+      # - DB_COPY_PW_PATH=/opt/trans
+      # - GEN_DB_SVC=unicenta
+      - DB_USER=unicenta_svc
+      - DB_PASS=ry62UJQLR2AqELkq8vTkhL7M
+    restart: "always"
+    networks:
+      - db_net
+    expose:
+      - 3306
+    volumes:
+      - /var/lib/mysql:/var/lib/mysql
+      # - db_vol:/opt/trans
+    depends_on:
+      - x11
+
+  unicenta:
+    image: unicentapos
+    environment:
+      # - DB_COPY_PW_PATH=/opt/trans
+      - DB_HOST=mariadb
+      # - DB_SVC=unicenta
+      - DB_USER=unicenta_svc
+      - DB_PASS=E746090D21B1DD9F981A6619F2AE54C08EA505D79A5F1EE3C95217CD5E38254F
+      - DISPLAY=:0.0
+    restart: "always"
+    networks:
+      - default
+      - db_net
+    volumes:
+      # - db_vol:/opt/trans
+      - pos_vol:/home/pos
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    depends_on:
+      - mariadb
+    deploy:
+      mode: global
+      placement:
+        constraints: 
+          - node.platform.os == linux
+          - engine.labels.graphics.i915 == true
+          - engine.labels.serial_number == DW1626551800123
+

@@ -1,0 +1,31 @@
+version: "3.7"
+
+services:
+    kcup:
+      image: docker:19.03.0
+      entrypoint: [sh, -c]
+      environment:
+        TASK_NAME: '{{.Task.Name}}'
+      command: >-
+        'exec docker run
+        --interactive
+        --init
+        --name kcup
+        --rm
+        --env DISPLAY=":0"
+        --env VNC=true
+        --env KCUP_TASK_NAME=$${TASK_NAME}
+        --privileged=true
+        --net=host
+        --label com.docker.stack.namespace=$$(docker container inspect --format "{{index .Config.Labels \"com.docker.stack.namespace\"}}" $${TASK_NAME})
+        -v /dev:/dev:shared
+        -v /var/log:/var/log
+        -v /var/run:/var/run
+        -v /usr/bin/docker:/usr/bin/docker
+        10.1.1.87:443/broc/kcup'
+      volumes:
+        - /var/run/docker.sock:/var/run/docker.sock
+      deploy:
+        placement:
+          constraints:
+            - node.labels.usb-camera == true

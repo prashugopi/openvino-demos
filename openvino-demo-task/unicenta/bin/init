@@ -1,0 +1,40 @@
+#!/bin/sh
+
+if [ ! -f /home/pos/unicentaopos.properties ]; then
+    if [ -z $DB_PORT ]; then
+        DB_PORT="3306"
+    fi
+
+    if [ -z $DB_HOST ]; then
+        DB_HOST="localhost"
+    fi
+
+    if [ ! -z $DB_COPY_PW_PATH ]; then
+        until [ -f ${DB_COPY_PW_PATH}/${DB_SVC}_svc ]; do
+            echo "waiting for file: ${DB_COPY_PW_PATH}/${DB_SVC}_svc ..."
+            sleep 1
+        done
+        DB_USER=${DB_SVC}_svc
+        DB_PASS=$(cat ${DB_COPY_PW_PATH}/${DB_SVC}_svc)
+    else
+        echo "waiting for database to come online..."
+        sleep 15
+    fi
+
+    if [ -z $DB_USER ] && [ "$DB_USER" != "" ]; then
+        echo "ERROR: Envrionment variable DB_USER required."
+    fi
+
+    if [ -z $DB_PASS ] && [ "$DB_PASS" != "" ]; then
+        echo "ERROR: Envrionment variable DB_PASS required."
+    fi
+
+    cat /tmp/unicentaopos.properties |\
+        sed "s|_DBHOST_|${DB_HOST}|g" |\
+        sed "s|_DBPORT_|${DB_PORT}|g" |\
+        sed "s|_DBUSER_|${DB_USER}|g" |\
+        sed "s|_DBPASS_|${DB_PASS}|g" \
+    > /home/pos/unicentaopos.properties
+fi
+
+exec /opt/unicentaopos/start.sh
