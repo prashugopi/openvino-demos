@@ -1,0 +1,13 @@
+FROM openvino:latest
+
+WORKDIR /opt/intel/openvino_2020.2.120/deployment_tools/open_model_zoo/demos/
+RUN bash -C "./build_demos.sh"
+
+WORKDIR /opt/intel/openvino_2020.2.120/deployment_tools/tools/model_downloader
+RUN python3 downloader.py --name text-recognition-0012
+RUN python3 downloader.py --name text-detection-0004
+
+CMD bash -c "cd /opt/intel/openvino_2020.2.120/bin/ && \
+source setupvars.sh && \
+cd /root/omz_demos_build/intel64/Release/ && \
+./text_detection_demo -i /dev/video0 -dt webcam -m_tr /opt/intel/openvino_2020.2.120/deployment_tools/open_model_zoo/tools/downloader/intel/text-recognition-0012/FP32/text-recognition-0012.xml -m_td /opt/intel/openvino_2020.2.120/deployment_tools/open_model_zoo/tools/downloader/intel/text-detection-0004/FP32/text-detection-0004.xml"
