@@ -1,0 +1,8 @@
+version: "3.7"
+
+services:
+  openvino:
+    image: openvino
+    build:
+      dockerfile: Dockerfile.openvino
+      context: .

@@ -1,0 +1,17 @@
+FROM openvino:latest
+
+WORKDIR /opt/intel/openvino_2020.2.120/deployment_tools/open_model_zoo/demos/
+RUN bash -C "./build_demos.sh"
+
+WORKDIR /opt/intel/openvino_2020.2.120/deployment_tools/tools/model_downloader
+
+ADD demo_0418_win10 /temp/
+WORKDIR /temp
+ADD run.sh /temp/run.sh
+RUN chmod u+x /temp/run.sh
+RUN pip3 install opencv-python
+
+CMD bash -c "cd /opt/intel/openvino_2020.2.120/bin/ && \
+source setupvars.sh && \
+cd /temp && \
+python3 main2.py"
